@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "cristiansrc.wallpicker",
+  "name": "Wallpaper Picker",
+  "version": "1.0.0",
+  "author": "cristiansrc",
+  "description": "Selector visual de video-wallpapers de ~/Wallpapers — aplica via rotate-wall (pipeline completo: frame, displaywright, animación, tema)",
+  "kinds": ["overlay"],
+  "entryPoints": {
+    "overlay": "WallPicker.qml"
+  }
+}

@@ -1,0 +1,9 @@
+#!/bin/bash
+# atajo para rotar video-wallpaper manualmente
+# Reinicia el countdown del rotator automático: toca el marcador skip-once y
+# activa el servicio (actualiza last-active del timer) antes de rotar por fuera.
+STATE="$HOME/.local/state/omarchy/video-wallpaper"
+mkdir -p "$STATE"
+touch "$STATE/.skip-once"
+systemctl --user start video-wallpaper.service 2>/dev/null || true
+exec "$HOME/.local/bin/video-wallpaper-rotator.sh" "$@"

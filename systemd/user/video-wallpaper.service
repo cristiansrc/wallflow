@@ -1,0 +1,12 @@
+[Unit]
+Description=Video wallpaper rotator (mpvpaper + dominant color theme)
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/video-wallpaper-rotator.sh
+IOSchedulingClass=idle
+RemainAfterExit=no
+# Los mpvpaper son demonios fork: no matarlos al terminar el oneshot.
+# El rotador gestiona su ciclo de vida con pkill en cada rotacion.
+KillMode=process

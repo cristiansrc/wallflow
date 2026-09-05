@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "cristiansrc.gamemode",
+  "name": "Game Mode Toggle",
+  "version": "1.0.0",
+  "author": "cristiansrc",
+  "description": "Modo Juego: fondo estatico, sin blur/animaciones, rotacion congelada",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Gamemode.qml"
+  },
+  "barWidget": {
+    "displayName": "Game Mode",
+    "description": "Toggle de modo juego (optimiza GPU para jugar)",
+    "category": "System"
+  }
+}

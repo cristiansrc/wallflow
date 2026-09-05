@@ -1,0 +1,12 @@
+[Unit]
+Description=Rotate video wallpaper every 2 hours
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2h
+Persistent=true
+RandomizedDelaySec=2m
+Unit=video-wallpaper.service
+
+[Install]
+WantedBy=timers.target
