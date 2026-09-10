@@ -26,6 +26,11 @@ DW_FRAMES_DIR="$STATE_DIR/frames"
 GAME_FRAME="$HOME/.local/state/omarchy/game-mode/current-frame.jpg"
 mkdir -p "$STATE_DIR" "$THEME_DIR/backgrounds" "$DW_FRAMES_DIR"
 
+# Lock anti-concurrencia (doble W, manual+timer): si otra rotacion esta en
+# curso, salir sin tocar mpvpaper ni la config (evita kill sin relaunch).
+exec 9>"$STATE_DIR/.rotator.lock"
+flock -n 9 || { echo "Otra rotacion en curso, saliendo."; exit 0; }
+
 # Pick random video (mp4/webm)
 if [[ ! -d "$WALLPAPER_DIR" ]]; then
   echo "Wallpaper dir no existe: $WALLPAPER_DIR" >&2
@@ -288,10 +293,10 @@ cat "$THEME_DIR/colors.toml"
 CURRENT=$(cat ~/.local/state/omarchy/current/theme.name 2>/dev/null || echo "")
 if [[ "$CURRENT" != "$THEME_NAME" ]]; then
   echo "Setting theme $THEME_NAME..."
-  omarchy theme set "$THEME_NAME" 2>&1 | tail -n 20
+  timeout 60 omarchy theme set "$THEME_NAME" 2>&1 | tail -n 20 || echo "theme set fallo/lento: se continua con el video"
 else
   echo "Refreshing theme $THEME_NAME..."
-  omarchy theme refresh 2>&1 | tail -n 20
+  timeout 60 omarchy theme refresh 2>&1 | tail -n 20 || echo "theme refresh fallo/lento: se continua con el video"
   # Force shell reload of background symlink
   omarchy-shell -q background set "$STATE_DIR/current-frame.jpg" 2>/dev/null || true
 fi
@@ -350,12 +355,14 @@ fi
 echo "Launching mpvpaper (hwdec=no, gpu-context=waylandvk)..."
 MPVPAPER_OPTIONS="no-audio loop-file=inf hwdec=no load-scripts=no gpu-context=waylandvk"
 for mon in $(hyprctl monitors -j 2>/dev/null | python3 -c "import json,sys; print(' '.join(m['name'] for m in json.load(sys.stdin)))" 2>/dev/null); do
-  mpvpaper -f -o "$MPVPAPER_OPTIONS" "$mon" "$PICK" 2>/dev/null || true
+  # 9>&-: mpvpaper daemoniza (-f) y heredaria el fd del lock del rotator,
+  # dejando el flock tomado para siempre y bloqueando futuras rotaciones.
+  mpvpaper -f -o "$MPVPAPER_OPTIONS" "$mon" "$PICK" 9>&- 2>/dev/null || true
 done
 # Fallback por si hyprctl no responde (ej. boot muy temprano)
 if ! pgrep -x mpvpaper >/dev/null 2>&1; then
   for mon in HDMI-A-1 DP-1 HDMI-A-2; do
-    mpvpaper -f -o "$MPVPAPER_OPTIONS" "$mon" "$PICK" 2>/dev/null || true
+    mpvpaper -f -o "$MPVPAPER_OPTIONS" "$mon" "$PICK" 9>&- 2>/dev/null || true
   done
 fi
 

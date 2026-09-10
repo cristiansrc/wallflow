@@ -11,7 +11,9 @@
 // rastrea el estado por la propiedad `opened` y llama open()/hide().
 
 import QtQuick
+import QtQuick.Layouts
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 
@@ -22,10 +24,17 @@ Item {
   property var shell: null
   property var manifest: null
 
-  readonly property string pluginDir: manifest && manifest.__sourceDir
-    ? String(manifest.__sourceDir) : ""
-  readonly property string home: Quickshell.env("HOME")
-  readonly property string wallpaperDir: home + "/Wallpapers"
+  // Ruta fija del plugin: desde la actualizacion de omarchy el shell entrega
+  // a third-party un manifest sanitizado SIN __sourceDir (publicPluginManifest
+  // lo borra), asi que no se puede derivar la ruta del manifest.
+  // Es estable: es el directorio donde el shell descubre el plugin.
+  // Rutas absolutas fijas: en el contexto del Loader del shell, derivarlas
+  // en runtime (manifest.__sourceDir, Quickshell.env) no es fiable entre
+  // versiones (el shell sanitiza el manifest third-party). Plugin personal:
+  // estas rutas son estables en esta maquina.
+  readonly property string pluginDir: "/home/cristiansrc/.config/omarchy/plugins/cristiansrc.wallpicker"
+  readonly property string home: "/home/cristiansrc"
+  readonly property string wallpaperDir: "/home/cristiansrc/Wallpapers"
 
   // Paleta fija (tema ristretto del usuario) — el overlay no puede importar qs.Commons
   readonly property color cBg: "#e61b1513"
@@ -40,6 +49,7 @@ Item {
   property string currentVideoPath: ""
   property string searchText: ""
   property bool scanDone: false
+  property string scanError: ""
 
   function open(payload) {
     searchText = ""
@@ -59,7 +69,21 @@ Item {
     if (scanProc.running) scanProc.running = false
     sourceModel.clear()
     filteredModel.clear()
+    root.scanError = ""
+    root.scanDone = false
     if (root.pluginDir) scanProc.running = true
+  }
+
+  // Pantalla del monitor con foco: HyprlandMonitor no expone .screen,
+  // se resuelve por nombre contra Quickshell.screens.
+  function focusedScreen() {
+    var m = Hyprland.focusedMonitor
+    if (!m || !m.name) return null
+    var ss = Quickshell.screens
+    for (var i = 0; i < ss.length; ++i) {
+      if (ss[i] && ss[i].name === m.name) return ss[i]
+    }
+    return null
   }
 
   function matches(name) {
@@ -100,7 +124,15 @@ Item {
 
   Process {
     id: scanProc
-    command: root.pluginDir ? [root.pluginDir + "/scripts/scan.sh", root.wallpaperDir] : ["true"]
+    command: root.pluginDir ? ["bash", root.pluginDir + "/scripts/scan.sh", root.wallpaperDir] : ["true"]
+    onStarted: console.log("wallpicker: scan started:", command.join(" "))
+    onExited: {
+      console.log("wallpicker: scan exited:", exitCode)
+      if (exitCode !== 0) {
+        root.scanError = "Scan fallo (" + exitCode + ")"
+        console.warn("wallpicker: scan.sh exit", exitCode)
+      }
+    }
     stdout: SplitParser {
       onRead: function (line) {
         var parts = String(line).split("\t")
@@ -140,6 +172,9 @@ Item {
     id: win
     anchors { top: true; bottom: true; left: true; right: true }
     visible: root.opened
+    // Abrir en el monitor con foco (antes siempre caia en el primario DP-1
+    // y parecia que el picker "no funcionaba" desde los otros monitores).
+    screen: focusedScreen()
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "wallpicker"
@@ -384,9 +419,10 @@ Item {
 
               Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: root.scanDone && sourceModel.count === 0
-                  ? "No hay videos en ~/Wallpapers"
-                  : (root.searchText.length > 0 ? "Sin resultados para «" + root.searchText + "»" : "Escaneando…")
+                text: root.scanError !== "" ? root.scanError
+                  : (root.scanDone && sourceModel.count === 0
+                    ? "No hay videos en ~/Wallpapers"
+                    : (root.searchText.length > 0 ? "Sin resultados para «" + root.searchText + "»" : "Escaneando…"))
                 color: root.cMuted
                 font.pixelSize: 15
               }
