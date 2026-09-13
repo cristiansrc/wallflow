@@ -112,7 +112,7 @@ echo "Selected video: $PICK"
 TMPFRAME=$(mktemp /tmp/video-frame-XXXXXX.jpg)
 TMPHIST=$(mktemp /tmp/video-hist-XXXXXX.txt)
 
-cleanup() { rm -f "$TMPFRAME" "$TMPHIST"; }
+cleanup() { rm -f "$TMPFRAME" "$TMPHIST"; rm -rf "${ROTATOR_SHIM_DIR:-}"; }
 trap cleanup EXIT
 
 # Get duration to pick seek point
@@ -290,6 +290,15 @@ echo "Generated $THEME_DIR/colors.toml with accent $DOMINANT"
 cat "$THEME_DIR/colors.toml"
 
 # Apply theme if not already video-dark, otherwise refresh
+# Protección sesiones opencode: `omarchy theme set/refresh` ejecuta en paralelo
+# `omarchy-restart-opencode` (= killall -SIGUSR2 opencode). opencode solo maneja
+# SIGINT/SIGHUP/SIGTERM, así que SIGUSR2 lo termina y corta el run del modelo
+# en curso (Win+Alt+W/P o timer cada 2h). Sombra con no-op vía PATH: no se toca
+# /usr/bin (sobrevive a `omarchy update`) y el resto del theme se aplica igual.
+ROTATOR_SHIM_DIR=$(mktemp -d)
+printf '#!/bin/bash\nexit 0\n' > "$ROTATOR_SHIM_DIR/omarchy-restart-opencode"
+chmod +x "$ROTATOR_SHIM_DIR/omarchy-restart-opencode"
+export PATH="$ROTATOR_SHIM_DIR:$PATH"
 CURRENT=$(cat ~/.local/state/omarchy/current/theme.name 2>/dev/null || echo "")
 if [[ "$CURRENT" != "$THEME_NAME" ]]; then
   echo "Setting theme $THEME_NAME..."
@@ -300,6 +309,8 @@ else
   # Force shell reload of background symlink
   omarchy-shell -q background set "$STATE_DIR/current-frame.jpg" 2>/dev/null || true
 fi
+export PATH="${PATH#$ROTATOR_SHIM_DIR:}"
+rm -rf "$ROTATOR_SHIM_DIR"
 
 # === Gap sin flash + animación garantizada ===
 # 1) Kill mpvpaper RECÉN AHORA: el frame ya está listo, el gap mostrará LAST wallpaper (old displaywright image) sin flash negro.
